@@ -1,15 +1,16 @@
 package tech.tarakoshka.bridgemich.ui
 
-import androidx.compose.animation.AnimatedContent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -30,12 +34,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.ImageLoader
@@ -56,6 +69,8 @@ fun AssetGrid(
     val indicatorAlpha by animateFloatAsState(
         targetValue = if (clickedId == null) 0f else 1f, label = "indicatorAlpha"
     )
+    var menuOpen by remember { mutableStateOf(false) }
+
 
     Column {
         Row(
@@ -64,25 +79,81 @@ fun AssetGrid(
                 .padding(12.dp)
         ) {
             Text(buildAnnotatedString {
-                append("Logged in as ")
                 pushStyle(
-                    MaterialTheme.typography.bodyLarge.toSpanStyle()
-                        .copy(color = MaterialTheme.colorScheme.primary)
+                    MaterialTheme.typography.bodyMedium.toSpanStyle()
+                )
+                append("Logged in as  ")
+                pushStyle(
+                    MaterialTheme.typography.bodyMedium.toSpanStyle()
+                        .copy(color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
                 )
                 append(username)
                 pop()
-                append(" on ")
+                append("  on ")
                 pushStyle(
                     MaterialTheme.typography.bodyLarge.toSpanStyle()
-                        .copy(color = MaterialTheme.colorScheme.primary)
+                        .copy(color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
                 )
+                pushLink(LinkAnnotation.Url(url))
                 append(url)
                 pop()
             }, modifier = Modifier.weight(1f), lineHeight = 18.sp)
-            IconButton(onClick = onLogout, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = {
+                menuOpen = true
+            }, modifier = Modifier.size(48.dp)) {
                 Icon(
-                    Icons.AutoMirrored.Default.ExitToApp, contentDescription = "Logout"
+                    Icons.Default.MoreVert, contentDescription = "Options"
                 )
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    shape = MaterialTheme.shapes.large,
+                    offset = DpOffset(0.dp, 8.dp)
+                ) {
+                    val ctx = LocalContext.current
+                    val versionName = remember(ctx) {
+                        val packageManager = ctx.packageManager
+                        val packageName = ctx.packageName
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+                        } else {
+                            packageManager.getPackageInfo(packageName, 0)
+                        }.versionName
+                    }
+                    versionName?.let { version ->
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                        ) {
+                            Text("Bridgemich", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.tertiary))
+                            Text("v$version", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.tertiary))
+                        }
+                    }
+                    val uriHandler = LocalUriHandler.current
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.clickable {
+                            uriHandler.openUri("https://fj.tarakoshka.tech/tarakoshka/bridgemich")
+                        }.padding(horizontal = 24.dp, vertical = 8.dp).fillMaxWidth()
+                    ) {
+                        Text("Source")
+                        Icon(
+                            Icons.Default.Code, contentDescription = "Repository"
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.clickable {
+                            onLogout()
+                        }.padding(horizontal = 24.dp, vertical = 8.dp).fillMaxWidth()
+                    ) {
+                        Text("Log out")
+                        Icon(
+                            Icons.AutoMirrored.Default.ExitToApp, contentDescription = "Logout"
+                        )
+                    }
+                }
             }
         }
 
