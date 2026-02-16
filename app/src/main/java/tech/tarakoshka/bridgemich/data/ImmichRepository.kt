@@ -12,7 +12,6 @@ import io.ktor.http.contentType
 import io.ktor.util.cio.writeChannel
 import io.ktor.utils.io.copyAndClose
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import tech.tarakoshka.bridgemich.App
 import tech.tarakoshka.bridgemich.data.dtos.ImmichSearchResponse
@@ -21,8 +20,8 @@ import java.io.File
 class ImmichRepository {
     private val client = App.client
 
-    suspend fun login(url: String, email: String, password: String): String? {
-        return runCatching {
+    suspend fun login(url: String, email: String, password: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
             client.post("$url/api/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("email" to email, "password" to password))
@@ -30,19 +29,21 @@ class ImmichRepository {
         }.getOrNull()
     }
 
-    suspend fun loadImages(baseUrl: String, token: String): List<Pair<String, String>>? {
-        val ids = coroutineScope {
-            client.post("$baseUrl/api/search/metadata") {
+    suspend fun loadImages(baseUrl: String, token: String): List<Pair<String, String>>? = withContext(Dispatchers.IO) {
+        try {
+            val response = client.post("$baseUrl/api/search/metadata") {
                 header("Authorization", "Bearer $token")
-            }.body<ImmichSearchResponse>().assets?.items?.map { asset ->
-                asset.id?.let { id ->
-                    asset.originalMimeType?.let { type ->
-                        id to type
-                    }
-                }
+            }.body<ImmichSearchResponse>()
+            
+            response.assets?.items?.mapNotNull { asset ->
+                val id = asset.id
+                val type = asset.originalMimeType
+                if (id != null && type != null) id to type else null
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
-        return ids?.filterNotNull()
     }
 
     suspend fun downloadAsset(assetId: String, baseUrl: String, token: String, onProgress: (Float) -> Unit): File? =

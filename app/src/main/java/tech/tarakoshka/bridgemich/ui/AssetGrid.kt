@@ -1,9 +1,15 @@
 package tech.tarakoshka.bridgemich.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
@@ -47,6 +54,10 @@ fun AssetGrid(
     onAssetClick: (String) -> Unit
 ) {
     val progressAnim by animateFloatAsState(downloadProgress, label = "downloadProgress")
+    val indicatorAlpha by animateFloatAsState(
+        targetValue = if (clickedId == null) 0f else 1f,
+        label = "indicatorAlpha"
+    )
 
     Column {
         Row(
@@ -83,43 +94,72 @@ fun AssetGrid(
             progress = { progressAnim },
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(if (clickedId == null) 0f else 1f)
+                .alpha(indicatorAlpha)
         )
 
-        if (images == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4)
-            ) {
-                items(images) { imageInfo ->
-                    val assetId = imageInfo.first
-                    Box {
-                        AsyncImage(
-                            model = "$url/api/assets/$assetId/thumbnail?size=thumbnail",
-                            imageLoader = imageLoader,
-                            contentDescription = null,
+        AnimatedContent(
+            targetState = images,
+            transitionSpec = {
+                fadeIn() togetherWith fadeOut()
+            },
+            label = "gridContent"
+        ) { currentImages ->
+            if (currentImages == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(4),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(currentImages, key = { it.first }) { imageInfo ->
+                        val assetId = imageInfo.first
+                        val isDownloading = clickedId == assetId
+                        
+                        val overlayAlpha by animateFloatAsState(
+                            targetValue = when {
+                                clickedId == null -> 0f
+                                isDownloading -> 0.7f
+                                else -> 0.3f
+                            },
+                            label = "overlayAlpha"
+                        )
+                        
+                        val itemScale by animateFloatAsState(
+                            targetValue = if (isDownloading) 0.95f else 1f,
+                            label = "itemScale"
+                        )
+
+                        Box(
                             modifier = Modifier
                                 .padding(2.dp)
                                 .aspectRatio(1f)
-                                .clickable(enabled = clickedId == null) {
-                                    onAssetClick(assetId)
-                                },
-                            contentScale = ContentScale.Crop
-                        )
-                        if (clickedId != null) {
+                                .scale(itemScale)
+                        ) {
+                            AsyncImage(
+                                model = "$url/api/assets/$assetId/thumbnail?size=thumbnail",
+                                imageLoader = imageLoader,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(enabled = clickedId == null) {
+                                        onAssetClick(assetId)
+                                    },
+                                contentScale = ContentScale.Crop
+                            )
+                            
                             Box(
                                 modifier = Modifier
                                     .matchParentSize()
-                                    .background(
-                                        MaterialTheme.colorScheme.surface.copy(
-                                            alpha = 0.5f
-                                        )
-                                    ), contentAlignment = Alignment.Center
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = overlayAlpha)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                if (clickedId == assetId) {
+                                this@Column.AnimatedVisibility(
+                                    visible = isDownloading,
+                                    enter = fadeIn() + scaleIn(),
+                                    exit = fadeOut() + scaleOut()
+                                ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(24.dp)
                                     )
