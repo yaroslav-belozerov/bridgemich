@@ -8,6 +8,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.serialization.json.Json
 
 class App : Application() {
     override fun onCreate() {
@@ -22,7 +23,7 @@ class App : Application() {
         val client by lazy {
             HttpClient(Android) {
                 install(HttpTimeout) {
-                    requestTimeoutMillis = 20_000
+                    requestTimeoutMillis = 15_000
                 }
                 install(ContentNegotiation) {
                     json()

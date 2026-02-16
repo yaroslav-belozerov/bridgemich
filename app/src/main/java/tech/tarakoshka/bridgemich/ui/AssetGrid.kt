@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -46,7 +45,7 @@ import coil.compose.AsyncImage
 fun AssetGrid(
     url: String,
     username: String,
-    images: List<Pair<String, String>>?,
+    images: List<Pair<String, String>>,
     imageLoader: ImageLoader,
     clickedId: String?,
     downloadProgress: Float,
@@ -55,16 +54,14 @@ fun AssetGrid(
 ) {
     val progressAnim by animateFloatAsState(downloadProgress, label = "downloadProgress")
     val indicatorAlpha by animateFloatAsState(
-        targetValue = if (clickedId == null) 0f else 1f,
-        label = "indicatorAlpha"
+        targetValue = if (clickedId == null) 0f else 1f, label = "indicatorAlpha"
     )
 
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(horizontal = 12.dp)
-                .padding(bottom = 12.dp)
+                .padding(12.dp)
         ) {
             Text(buildAnnotatedString {
                 append("Logged in as ")
@@ -84,87 +81,66 @@ fun AssetGrid(
             }, modifier = Modifier.weight(1f), lineHeight = 18.sp)
             IconButton(onClick = onLogout, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    Icons.AutoMirrored.Default.ExitToApp,
-                    contentDescription = "Logout"
+                    Icons.AutoMirrored.Default.ExitToApp, contentDescription = "Logout"
                 )
             }
         }
 
         LinearProgressIndicator(
-            progress = { progressAnim },
-            modifier = Modifier
+            progress = { progressAnim }, modifier = Modifier
                 .fillMaxWidth()
                 .alpha(indicatorAlpha)
         )
 
-        AnimatedContent(
-            targetState = images,
-            transitionSpec = {
-                fadeIn() togetherWith fadeOut()
-            },
-            label = "gridContent"
-        ) { currentImages ->
-            if (currentImages == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(currentImages, key = { it.first }) { imageInfo ->
-                        val assetId = imageInfo.first
-                        val isDownloading = clickedId == assetId
-                        
-                        val overlayAlpha by animateFloatAsState(
-                            targetValue = when {
-                                clickedId == null -> 0f
-                                isDownloading -> 0.7f
-                                else -> 0.3f
-                            },
-                            label = "overlayAlpha"
-                        )
-                        
-                        val itemScale by animateFloatAsState(
-                            targetValue = if (isDownloading) 0.95f else 1f,
-                            label = "itemScale"
-                        )
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(4), modifier = Modifier.fillMaxSize()
+        ) {
+            items(images, key = { it.first }) { imageInfo ->
+                val assetId = imageInfo.first
+                val isDownloading = clickedId == assetId
 
-                        Box(
-                            modifier = Modifier
-                                .padding(2.dp)
-                                .aspectRatio(1f)
-                                .scale(itemScale)
+                val overlayAlpha by animateFloatAsState(
+                    targetValue = when {
+                        clickedId == null -> 0f
+                        isDownloading -> 0.7f
+                        else -> 0.3f
+                    }, label = "overlayAlpha"
+                )
+
+                val itemScale by animateFloatAsState(
+                    targetValue = if (isDownloading) 0.95f else 1f, label = "itemScale"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .padding(2.dp)
+                        .aspectRatio(1f)
+                        .scale(itemScale)
+                ) {
+                    AsyncImage(
+                        model = "$url/api/assets/$assetId/thumbnail?size=thumbnail",
+                        imageLoader = imageLoader,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(enabled = clickedId == null) {
+                                onAssetClick(assetId)
+                            },
+                        contentScale = ContentScale.Crop
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = overlayAlpha)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        this@Column.AnimatedVisibility(
+                            visible = isDownloading,
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
                         ) {
-                            AsyncImage(
-                                model = "$url/api/assets/$assetId/thumbnail?size=thumbnail",
-                                imageLoader = imageLoader,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable(enabled = clickedId == null) {
-                                        onAssetClick(assetId)
-                                    },
-                                contentScale = ContentScale.Crop
-                            )
-                            
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = overlayAlpha)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                this@Column.AnimatedVisibility(
-                                    visible = isDownloading,
-                                    enter = fadeIn() + scaleIn(),
-                                    exit = fadeOut() + scaleOut()
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
+                            LoadingCircle(size = 24.dp)
                         }
                     }
                 }

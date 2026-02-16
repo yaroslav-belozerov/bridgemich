@@ -15,24 +15,21 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import coil.ImageLoader
 import tech.tarakoshka.bridgemich.ui.AssetGrid
+import tech.tarakoshka.bridgemich.ui.FullScreenLoading
 import tech.tarakoshka.bridgemich.ui.LoginScreen
 import tech.tarakoshka.bridgemich.ui.theme.BridgemichTheme
 
@@ -73,12 +70,7 @@ class MainActivity : ComponentActivity() {
                         ) { state ->
                             when (state) {
                                 is AuthState.Loading -> {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                                    }
+                                    FullScreenLoading()
                                 }
 
                                 is AuthState.Unauthenticated -> {
@@ -105,7 +97,7 @@ class MainActivity : ComponentActivity() {
                                     AssetGrid(
                                         url = state.url,
                                         username = state.email,
-                                        images = viewModel.images,
+                                        images = viewModel.images.orEmpty(),
                                         imageLoader = loader,
                                         clickedId = viewModel.clickedId,
                                         downloadProgress = viewModel.downloadProgress,
