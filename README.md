@@ -18,3 +18,7 @@ Without this you have to download photo on Immich and then search for it again.
 
 <img height="200px" src="misc/screenshots/screenshot1.jpg"/>
 <img height="200px" src="misc/screenshots/screenshot2.jpg"/>
+
+### License
+This project is licensed under the Apache 2.0 Software License.  
+This application is not affiliated with the Immich project. All trademarks and brand names belong to their respective owners.

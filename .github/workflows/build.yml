@@ -71,7 +71,15 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Upload Artifact (GitHub Only)
+        if: github.server_url == 'https://github.com'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
+
       - name: Create and Upload to Release
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -79,25 +87,33 @@ jobs:
           APK_NAME=$(basename "$APK_PATH")
           TAG_NAME="${GITHUB_REF#refs/tags/}"
           
-          echo "Processing release for $TAG_NAME on ${{ github.api_url }}"
+          RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/releases/tags/$TAG_NAME")
           
-          # Forgejo and GitHub both support this API structure
-          RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "${{ github.api_url }}/repos/${{ github.repository }}/releases/tags/$TAG_NAME" | jq -r .id)
-          
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r .id)
+
           if [ "$RELEASE_ID" == "null" ] || [ -z "$RELEASE_ID" ]; then
-            echo "Creating new release..."
-            RELEASE_ID=$(curl -s -X POST \
+            echo "Creating release $TAG_NAME..."
+            RESPONSE=$(curl -s -X POST \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"tag_name\":\"$TAG_NAME\",\"name\":\"$TAG_NAME\"}" \
-              "${{ github.api_url }}/repos/${{ github.repository }}/releases" | jq -r .id)
+              -d "{\"tag_name\":\"$TAG_NAME\",\"name\":\"$TAG_NAME\",\"draft\":false,\"prerelease\":false}" \
+              "${{ github.api_url }}/repos/${{ github.repository }}/releases")
+            RELEASE_ID=$(echo "$RESPONSE" | jq -r .id)
           fi
+
+          if [ "$RELEASE_ID" == "null" ]; then echo "Error: Could not create/find release"; exit 1; fi
+
+          RAW_UPLOAD_URL=$(echo "$RESPONSE" | jq -r .upload_url | sed 's/{?name,label}//')
           
-          UPLOAD_URL="${{ github.api_url }}/repos/${{ github.repository }}/releases/$RELEASE_ID/assets"
-          
+          if [[ "$RAW_UPLOAD_URL" == *"uploads.github.com"* ]]; then
+            UPLOAD_URL="$RAW_UPLOAD_URL"
+          else
+            UPLOAD_URL="${{ github.api_url }}/repos/${{ github.repository }}/releases/$RELEASE_ID/assets"
+          fi
+
           echo "Uploading $APK_NAME to $UPLOAD_URL"
-          
+
           curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Content-Type: application/octet-stream" \
