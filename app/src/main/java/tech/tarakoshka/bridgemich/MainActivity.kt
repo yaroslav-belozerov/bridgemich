@@ -79,19 +79,22 @@ class MainActivity : ComponentActivity() {
                                         error = viewModel.loginError,
                                         onLogin = { loginUrl, loginEmail, loginPass ->
                                             viewModel.login(loginUrl, loginEmail, loginPass)
+                                        },
+                                        onLoginWithApiKey = { loginUrl, loginApiKey ->
+                                            viewModel.loginWithApiKey(loginUrl, loginApiKey)
                                         }
                                     )
                                 }
 
                                 is AuthState.Authenticated -> {
-                                    val loader = remember(state.token) {
+                                    val loader = remember(state.token, state.isApiKey) {
                                         ImageLoader.Builder(ctx).components {
-                                            add(UrlAuthInterceptor(state.token))
+                                            add(UrlAuthInterceptor(state.token, state.isApiKey))
                                         }.build()
                                     }
 
                                     LaunchedEffect(state.token, state.url) {
-                                        viewModel.loadImages(state.url, state.token)
+                                        viewModel.loadImages(state.url, state.token, state.isApiKey)
                                     }
 
                                     AssetGrid(
@@ -106,7 +109,8 @@ class MainActivity : ComponentActivity() {
                                             viewModel.downloadAndShare(
                                                 assetId,
                                                 state.url,
-                                                state.token
+                                                state.token,
+                                                state.isApiKey
                                             ) { file ->
                                                 setResult(RESULT_OK, Intent().apply {
                                                     data = FileProvider.getUriForFile(

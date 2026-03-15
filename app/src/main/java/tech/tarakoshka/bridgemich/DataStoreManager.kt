@@ -1,6 +1,7 @@
 package tech.tarakoshka.bridgemich
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,6 +13,7 @@ class DataStoreManager(ctx: Context) {
     private val tokenKey = stringPreferencesKey("token")
     private val instanceKey = stringPreferencesKey("instance")
     private val emailKey = stringPreferencesKey("username")
+    private val isApiKeyKey = booleanPreferencesKey("is_api_key")
 
     val token = dataStore.data.map { it[tokenKey].orEmpty() }
     suspend fun setToken(value: String) = dataStore.edit { it[tokenKey] = value }
@@ -24,5 +26,10 @@ class DataStoreManager(ctx: Context) {
     val email = dataStore.data.map { it[emailKey].orEmpty() }
     suspend fun setEmail(value: String) {
         dataStore.edit { it[emailKey] = value }
+    }
+
+    val isApiKey = dataStore.data.map { it[isApiKeyKey] ?: false }
+    suspend fun setIsApiKey(value: Boolean) {
+        dataStore.edit { it[isApiKeyKey] = value }
     }
 }

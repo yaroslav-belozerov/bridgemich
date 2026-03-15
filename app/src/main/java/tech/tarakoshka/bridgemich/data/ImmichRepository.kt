@@ -14,7 +14,10 @@ import io.ktor.utils.io.copyAndClose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.tarakoshka.bridgemich.App
+import tech.tarakoshka.bridgemich.authHeader
+import tech.tarakoshka.bridgemich.data.dtos.ImmichLoginResponse
 import tech.tarakoshka.bridgemich.data.dtos.ImmichSearchResponse
+import tech.tarakoshka.bridgemich.data.dtos.ImmichUserResponse
 import java.io.File
 
 class ImmichRepository {
@@ -26,15 +29,26 @@ class ImmichRepository {
                 client.post("$url/api/auth/login") {
                     contentType(ContentType.Application.Json)
                     setBody(mapOf("email" to email, "password" to password))
-                }.body<Map<String, String>>()["accessToken"]!!
+                }.body<ImmichLoginResponse>().accessToken
             }
         }
 
-    suspend fun loadImages(baseUrl: String, token: String): List<Pair<String, String>>? =
+    suspend fun validateApiKey(url: String, apiKey: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            return@withContext runCatching {
+                val user = client.get("$url/api/users/me") {
+                    header("x-api-key", apiKey)
+                }.body<ImmichUserResponse>()
+                user.email
+            }
+        }
+
+    suspend fun loadImages(baseUrl: String, token: String, isApiKey: Boolean = false): List<Pair<String, String>>? =
         withContext(Dispatchers.IO) {
             try {
+                val (headerName, headerValue) = authHeader(token, isApiKey)
                 val response = client.post("$baseUrl/api/search/metadata") {
-                    header("Authorization", "Bearer $token")
+                    header(headerName, headerValue)
                 }.body<ImmichSearchResponse>()
 
                 response.assets?.items?.mapNotNull { asset ->
@@ -49,12 +63,13 @@ class ImmichRepository {
         }
 
     suspend fun downloadAsset(
-        assetId: String, baseUrl: String, token: String, onProgress: (Float) -> Unit
+        assetId: String, baseUrl: String, token: String, isApiKey: Boolean = false, onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
         try {
+            val (headerName, headerValue) = authHeader(token, isApiKey)
             val file = File(App.app.cacheDir, "shared_photo.jpg")
             client.get("$baseUrl/api/assets/$assetId/original") {
-                header("Authorization", "Bearer $token")
+                header(headerName, headerValue)
                 onDownload { bytesSentTotal, contentLength ->
                     if (contentLength != null && contentLength > 0) {
                         onProgress(bytesSentTotal.toFloat() / contentLength)
