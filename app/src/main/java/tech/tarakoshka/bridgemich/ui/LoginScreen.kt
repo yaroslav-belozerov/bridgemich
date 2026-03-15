@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,14 +44,21 @@ import kotlinx.coroutines.launch
 fun LoginScreen(
     loggingIn: Boolean,
     error: String?,
-    onLogin: (url: String, email: String, pass: String) -> Unit
+    onLogin: (url: String, email: String, pass: String) -> Unit,
+    onLoginWithApiKey: (url: String, apiKey: String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
+    var useApiKey by remember { mutableStateOf(false) }
 
-    val canLogin = !loggingIn && url.isNotBlank() && email.isNotBlank() && password.isNotBlank()
+    val canLogin = !loggingIn && url.isNotBlank() && if (useApiKey) {
+        apiKey.isNotBlank()
+    } else {
+        email.isNotBlank() && password.isNotBlank()
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -64,7 +72,10 @@ fun LoginScreen(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Bridgemich", style = MaterialTheme.typography.displayMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 6.sp, fontWeight = FontWeight.Bold))
-            Text("Log in with Immich credentials", style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.primary))
+            Text(
+                if (useApiKey) "Log in with API key" else "Log in with Immich credentials",
+                style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.primary)
+            )
         }
         OutlinedTextField(
             enabled = !loggingIn,
@@ -80,51 +91,84 @@ fun LoginScreen(
             value = url,
             onValueChange = { url = it }
         )
-        OutlinedTextField(
-            enabled = !loggingIn,
-            placeholder = { Text("user@example.org") },
-            label = { Text("E-Mail") },
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Next,
-                keyboardType = KeyboardType.Email,
-                autoCorrectEnabled = false
-            ),
-            shape = MaterialTheme.shapes.large,
+        if (useApiKey) {
+            OutlinedTextField(
+                enabled = !loggingIn,
+                label = { Text("API Key") },
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    keyboardType = KeyboardType.Password,
+                    autoCorrectEnabled = false
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (canLogin) onLoginWithApiKey(url, apiKey)
+                }),
+                visualTransformation = PasswordVisualTransformation(),
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+                value = apiKey,
+                onValueChange = { apiKey = it }
+            )
+        } else {
+            OutlinedTextField(
+                enabled = !loggingIn,
+                placeholder = { Text("user@example.org") },
+                label = { Text("E-Mail") },
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Next,
+                    keyboardType = KeyboardType.Email,
+                    autoCorrectEnabled = false
+                ),
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+                value = email,
+                onValueChange = { email = it }
+            )
+            OutlinedTextField(
+                enabled = !loggingIn,
+                label = { Text("Password") },
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    keyboardType = KeyboardType.Password,
+                    autoCorrectEnabled = false
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (canLogin) onLogin(url, email, password)
+                }),
+                visualTransformation = PasswordVisualTransformation(),
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(),
+                value = password,
+                onValueChange = { password = it }
+            )
+        }
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            value = email,
-            onValueChange = { email = it }
-        )
-        OutlinedTextField(
-            enabled = !loggingIn,
-            label = { Text("Password") },
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = KeyboardType.Password,
-                autoCorrectEnabled = false
-            ),
-            keyboardActions = KeyboardActions(onDone = {
-                if (canLogin) onLogin(url, email, password)
-            }),
-            visualTransformation = PasswordVisualTransformation(),
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth(),
-            value = password,
-            onValueChange = { password = it }
-        )
-        Button(
-            enabled = canLogin,
-            onClick = { onLogin(url, email, password) },
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.align(Alignment.End),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (loggingIn) {
-                LoadingCircle(
-                    size = 16.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
-                )
+            TextButton(
+                enabled = !loggingIn,
+                onClick = { useApiKey = !useApiKey }
+            ) {
+                Text(if (useApiKey) "Use email & password" else "Use API key")
             }
-            Text("Login", modifier = Modifier.padding(start = 4.dp))
+            Button(
+                enabled = canLogin,
+                onClick = {
+                    if (useApiKey) onLoginWithApiKey(url, apiKey) else onLogin(url, email, password)
+                },
+                shape = MaterialTheme.shapes.large,
+            ) {
+                if (loggingIn) {
+                    LoadingCircle(
+                        size = 16.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                }
+                Text("Login", modifier = Modifier.padding(start = 4.dp))
+            }
         }
         error?.let {
             val clip = LocalClipboard.current

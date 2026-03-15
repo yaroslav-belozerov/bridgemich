@@ -25,6 +25,7 @@ sealed class AuthState {
         val token: String,
         val url: String,
         val email: String,
+        val isApiKey: Boolean,
         val images: List<Pair<String, String>>
     ) : AuthState()
     data object Unauthenticated : AuthState()
@@ -38,24 +39,24 @@ class MainViewModel : ViewModel() {
         private set
 
     val authState: StateFlow<AuthState> = combine(
-        dataStore.token, dataStore.url, dataStore.email, snapshotFlow { images }
-    ) { token, url, email, currentImages ->
+        dataStore.token, dataStore.url, dataStore.email, dataStore.isApiKey, snapshotFlow { images }
+    ) { token, url, email, isApiKey, currentImages ->
         if (token.isBlank()) {
             AuthState.Unauthenticated
         } else if (currentImages == null) {
             AuthState.Loading
         } else {
-            AuthState.Authenticated(token, url, email, currentImages)
+            AuthState.Authenticated(token, url, email, isApiKey, currentImages)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AuthState.Loading)
 
     init {
         viewModelScope.launch {
-            combine(dataStore.token, dataStore.url) { token, url ->
-                token to url
-            }.collect { (token, url) ->
+            combine(dataStore.token, dataStore.url, dataStore.isApiKey) { token, url, isApiKey ->
+                Triple(token, url, isApiKey)
+            }.collect { (token, url, isApiKey) ->
                 if (token.isNotBlank() && images == null) {
-                    loadImages(url, token)
+                    loadImages(url, token, isApiKey)
                 }
             }
         }
@@ -79,7 +80,33 @@ class MainViewModel : ViewModel() {
             repository.login(url, email, pass).onSuccess {
                 dataStore.setUrl(url)
                 dataStore.setEmail(email)
+                dataStore.setIsApiKey(false)
                 dataStore.setToken(it)
+            }.onFailure {
+                loginError = when (it) {
+                    is ClientRequestException, is ServerResponseException -> {
+                        runCatching {
+                            it.response.body<ImmichError>().run {
+                                "$message ($statusCode): $error"
+                            }
+                        }.getOrNull() ?: "Error fetching data: ${it.message ?: it}"
+                    }
+                    else -> "Error on client: ${it.message ?: it}"
+                }
+            }
+            loggingIn = false
+        }
+    }
+
+    fun loginWithApiKey(url: String, apiKey: String) {
+        loggingIn = true
+        loginError = null
+        viewModelScope.launch {
+            repository.validateApiKey(url, apiKey).onSuccess { email ->
+                dataStore.setUrl(url)
+                dataStore.setEmail(email)
+                dataStore.setIsApiKey(true)
+                dataStore.setToken(apiKey)
             }.onFailure {
                 loginError = when (it) {
                     is ClientRequestException, is ServerResponseException -> {
@@ -101,21 +128,22 @@ class MainViewModel : ViewModel() {
             dataStore.setToken("")
             dataStore.setUrl("")
             dataStore.setEmail("")
+            dataStore.setIsApiKey(false)
             images = null
         }
     }
 
-    fun loadImages(url: String, token: String) {
+    fun loadImages(url: String, token: String, isApiKey: Boolean = false) {
         viewModelScope.launch {
-            images = repository.loadImages(url, token).orEmpty()
+            images = repository.loadImages(url, token, isApiKey).orEmpty()
         }
     }
 
-    fun downloadAndShare(assetId: String, url: String, token: String, onFinished: (File) -> Unit) {
+    fun downloadAndShare(assetId: String, url: String, token: String, isApiKey: Boolean = false, onFinished: (File) -> Unit) {
         clickedId = assetId
         downloadProgress = 0f
         viewModelScope.launch {
-            repository.downloadAsset(assetId, url, token) {
+            repository.downloadAsset(assetId, url, token, isApiKey) {
                 downloadProgress = it
             }?.let {
                 onFinished(it)

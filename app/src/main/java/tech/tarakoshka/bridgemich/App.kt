@@ -26,7 +26,7 @@ class App : Application() {
                     requestTimeoutMillis = 15_000
                 }
                 install(ContentNegotiation) {
-                    json()
+                    json(Json { ignoreUnknownKeys = true })
                 }
                 expectSuccess = true
             }
